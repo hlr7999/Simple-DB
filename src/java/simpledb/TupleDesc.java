@@ -42,19 +42,16 @@ public class TupleDesc implements Serializable {
      * */
     public Iterator<TDItem> iterator() {
         // some code goes here
-    	class iter implements Iterator<TDItem>     //方法内部类
-        {
+    	class iter implements Iterator<TDItem> {
             private int cur= 0;
             
             @Override
-            public boolean hasNext()
-            {
+            public boolean hasNext() {
                 return cur != tdItems.length;
             }
 
             @Override
-            public TDItem next()
-            {
+            public TDItem next() {
                 TDItem item = tdItems[cur];
                 ++cur;
                 return item;

@@ -105,22 +105,18 @@ public class Tuple implements Serializable {
      * @return
      *        An iterator which iterates over all the fields of this tuple
      * */
-    public Iterator<Field> fields()
-    {
+    public Iterator<Field> fields() {
         // some code goes here
-    	class iter implements Iterator<Field>     //方法内部类
-        {
+    	class iter implements Iterator<Field> {
             private int cur= 0;
             
             @Override
-            public boolean hasNext()
-            {
+            public boolean hasNext() {
                 return cur != values.length;
             }
 
             @Override
-            public Field next()
-            {
+            public Field next() {
                 Field item = values[cur];
                 ++cur;
                 return item;
