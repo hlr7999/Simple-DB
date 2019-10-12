@@ -65,21 +65,18 @@ public class HeapPage implements Page {
     /** Retrieve the number of tuples on this page.
         @return the number of tuples on this page
     */
-    private int getNumTuples() {        
+    private int getNumTuples() {
         // some code goes here
-        return 0;
-
+    	return (BufferPool.getPageSize()<<3)/((td.getSize()<<3)+1);
     }
 
     /**
      * Computes the number of bytes in the header of a page in a HeapFile with each tuple occupying tupleSize bytes
      * @return the number of bytes in the header of a page in a HeapFile with each tuple occupying tupleSize bytes
      */
-    private int getHeaderSize() {        
-        
+    private int getHeaderSize() {
         // some code goes here
-        return 0;
-                 
+        return (numSlots+7)>>3;
     }
     
     /** Return a view of this page before it was modified
@@ -103,7 +100,7 @@ public class HeapPage implements Page {
     public void setBeforeImage() {
         synchronized(oldDataLock)
         {
-        oldData = getPageData().clone();
+        	oldData = getPageData().clone();
         }
     }
 
@@ -111,8 +108,8 @@ public class HeapPage implements Page {
      * @return the PageId associated with this page.
      */
     public HeapPageId getId() {
-    // some code goes here
-    throw new UnsupportedOperationException("implement this");
+	    // some code goes here
+	    return pid;
     }
 
     /**
@@ -282,7 +279,12 @@ public class HeapPage implements Page {
      */
     public int getNumEmptySlots() {
         // some code goes here
-        return 0;
+        int ans = 0;
+        for (int i = 0; i < numSlots; ++i) {
+        	if (!isSlotUsed(i))
+        		++ans;
+        }
+        return ans;
     }
 
     /**
@@ -290,7 +292,7 @@ public class HeapPage implements Page {
      */
     public boolean isSlotUsed(int i) {
         // some code goes here
-        return false;
+        return 0 != (header[i>>3]&(1<<(i&7)));
     }
 
     /**
@@ -307,7 +309,29 @@ public class HeapPage implements Page {
      */
     public Iterator<Tuple> iterator() {
         // some code goes here
-        return null;
+    	class iter implements Iterator<Tuple> {
+    		private int cur = 0;
+    		
+    		@Override
+    		public boolean hasNext() {
+    			while (cur < numSlots) {
+    				if (isSlotUsed(cur))
+    					return true;
+    				else ++cur;
+    			}
+    			return false;
+    		}
+    		
+    		@Override
+    		public Tuple next() {
+    			if (hasNext()) {
+    				return tuples[cur++];
+    			} else {
+    				throw new NoSuchElementException();
+    			}
+    		}
+    	}
+        return new iter();
     }
 
 }

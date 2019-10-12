@@ -112,14 +112,16 @@ public class Tuple implements Serializable {
             
             @Override
             public boolean hasNext() {
-                return cur != values.length;
+                return cur < values.length;
             }
 
             @Override
             public Field next() {
-                Field item = values[cur];
-                ++cur;
-                return item;
+            	if (hasNext()) {
+            		return values[cur++];
+            	} else {
+            		return null;
+            	}
             }
         }
         return new iter();
