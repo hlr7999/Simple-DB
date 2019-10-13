@@ -14,6 +14,9 @@ import java.util.*;
  * @author Sam Madden
  */
 public class HeapFile implements DbFile {
+	
+	private final File file;
+	private final TupleDesc td;
 
     /**
      * Constructs a heap file backed by the specified file.
@@ -24,6 +27,8 @@ public class HeapFile implements DbFile {
      */
     public HeapFile(File f, TupleDesc td) {
         // some code goes here
+    	this.file = f;
+    	this.td = td;
     }
 
     /**
@@ -33,7 +38,7 @@ public class HeapFile implements DbFile {
      */
     public File getFile() {
         // some code goes here
-        return null;
+        return file;
     }
 
     /**
@@ -47,7 +52,7 @@ public class HeapFile implements DbFile {
      */
     public int getId() {
         // some code goes here
-        throw new UnsupportedOperationException("implement this");
+        return file.getAbsoluteFile().hashCode();
     }
 
     /**
@@ -57,13 +62,32 @@ public class HeapFile implements DbFile {
      */
     public TupleDesc getTupleDesc() {
         // some code goes here
-        throw new UnsupportedOperationException("implement this");
+        return td;
     }
 
     // see DbFile.java for javadocs
     public Page readPage(PageId pid) {
         // some code goes here
-        return null;
+        if (pid.getTableId() != getId()) {
+        	throw new IllegalArgumentException("page not in this table");
+        }
+        int pgNo = pid.getPageNumber();
+        if (pgNo < 0 || pgNo >= numPages()) {
+        	throw new IllegalArgumentException("page number out of range");
+        }
+        byte[] data = HeapPage.createEmptyPageData();
+        try {
+			RandomAccessFile raf = new RandomAccessFile(file, "r");
+			try {
+				raf.seek(BufferPool.getPageSize() * pgNo);
+				raf.read(data, 0, BufferPool.getPageSize());
+				return new HeapPage(new HeapPageId(getId(), pgNo), data);
+			} finally {
+				raf.close();
+			}
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
     }
 
     // see DbFile.java for javadocs
@@ -77,7 +101,7 @@ public class HeapFile implements DbFile {
      */
     public int numPages() {
         // some code goes here
-        return 0;
+        return (int)(file.length()/BufferPool.getPageSize());
     }
 
     // see DbFile.java for javadocs
@@ -99,7 +123,51 @@ public class HeapFile implements DbFile {
     // see DbFile.java for javadocs
     public DbFileIterator iterator(TransactionId tid) {
         // some code goes here
-        return null;
+        return new DbFileIterator() {
+        	
+        	private int pgNo = -1;
+        	private Iterator<Tuple> tupleIter = null;
+        	private final BufferPool pool = Database.getBufferPool();
+        	private final int tableId = getId();
+        	
+        	@Override
+        	public void open()
+    	        throws DbException, TransactionAbortedException {
+        		pgNo = 0;
+        		tupleIter = ((HeapPage)pool.getPage(tid, new HeapPageId(tableId, pgNo++),
+						Permissions.READ_ONLY)).iterator();
+        	}
+        	@Override
+    	    public boolean hasNext()
+    	        throws DbException, TransactionAbortedException {
+        		if (tupleIter != null && tupleIter.hasNext()) {
+        			return true;
+        		} else if (pgNo < 0 || pgNo >= numPages()) {
+        			return false;
+        		} else {
+    				tupleIter = ((HeapPage)pool.getPage(tid, new HeapPageId(tableId, pgNo++), 
+						Permissions.READ_ONLY)).iterator();
+    				return hasNext();
+        		}
+        	}
+    	    @Override
+    	    public Tuple next()
+    	        throws DbException, TransactionAbortedException, NoSuchElementException {
+    	    	if (hasNext()) {
+    	    		return tupleIter.next();
+    	    	}
+    	    	throw new NoSuchElementException();
+    	    }
+    	    @Override
+    	    public void rewind() throws DbException, TransactionAbortedException {
+    	    	open();
+    	    }
+    	    @Override
+    	    public void close() {
+    	    	pgNo = -1;
+    	    	tupleIter = null;
+    	    }
+        };
     }
 
 }

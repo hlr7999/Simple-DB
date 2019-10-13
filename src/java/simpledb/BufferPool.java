@@ -70,12 +70,21 @@ public class BufferPool {
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-    	for (int i = 0; i < this.pages.length; ++i) {
-    		if (this.pages[i].getId().equals(pid)) {
-    			return this.pages[i];
+    	int null_index = -1;
+    	for (int i = 0; i < pages.length; ++i) {
+    		if (pages[i] == null) {
+    			null_index = i;
+    		}else if (pages[i].getId().equals(pid)) {
+    			return pages[i];
     		}
     	}
-    	throw new DbException(null);
+    	if (null_index < 0) {
+    		evictPage();
+    		throw new DbException(null);
+    	} else {
+    		return pages[null_index] = Database.getCatalog().
+    			getDatabaseFile(pid.getTableId()).readPage(pid);
+    	}
     }
 
     /**
