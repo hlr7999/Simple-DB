@@ -1,15 +1,9 @@
 simple-db
 =========
 
-Code for all 6.830 labs will be available in this repo. Once you have set up your class repo, you pull lab code from here.
+Code for [MIT 6.830]( http://db.csail.mit.edu/6.830/ )
 
-Directions for Repo Setup
+Lab Info
 -------------------------
 
 Directions can be [here](https://github.com/MIT-DB-Class/course-info-2018)
-
-Lab Submission
------
-
-Instructions for labs (including how to submit answers) are [here](https://github.com/MIT-DB-Class/course-info-2018)
-
