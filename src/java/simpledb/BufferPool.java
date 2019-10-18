@@ -1,7 +1,7 @@
 package simpledb;
 
 import java.io.*;
-
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -26,7 +26,8 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
     
-    private final Page[] pages;
+    private final ConcurrentHashMap<PageId, Page> pages;
+    private final int numPages;
 
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -35,11 +36,12 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         // some code goes here
-    	this.pages = new Page[numPages];
+    	this.pages = new ConcurrentHashMap<PageId, Page>();
+    	this.numPages = numPages;
     }
     
     public static int getPageSize() {
-      return pageSize;
+        return pageSize;
     }
     
     // THIS FUNCTION SHOULD ONLY BE USED FOR TESTING!!
@@ -50,6 +52,14 @@ public class BufferPool {
     // THIS FUNCTION SHOULD ONLY BE USED FOR TESTING!!
     public static void resetPageSize() {
     	BufferPool.pageSize = DEFAULT_PAGE_SIZE;
+    }
+    
+    private void putPage(PageId pid, Page page) throws DbException {
+    	if (!pages.contains(pid) && pages.size() >= numPages) {
+    		assert pages.size() == numPages;
+    		evictPage();
+    	}
+    	pages.put(pid, page);
     }
 
     /**
@@ -70,21 +80,12 @@ public class BufferPool {
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-    	int null_index = -1;
-    	for (int i = 0; i < pages.length; ++i) {
-    		if (pages[i] == null) {
-    			null_index = i;
-    		}else if (pages[i].getId().equals(pid)) {
-    			return pages[i];
-    		}
+    	Page page = pages.get(pid);
+    	if (page == null) {
+    		page = Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
+    		putPage(pid, page);
     	}
-    	if (null_index < 0) {
-    		evictPage();
-    		throw new DbException(null);
-    	} else {
-    		return pages[null_index] = Database.getCatalog().
-    			getDatabaseFile(pid.getTableId()).readPage(pid);
-    	}
+    	return page;
     }
 
     /**
@@ -149,7 +150,10 @@ public class BufferPool {
     public void insertTuple(TransactionId tid, int tableId, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
-        // not necessary for lab1
+        ArrayList<Page> list = Database.getCatalog().getDatabaseFile(tableId).insertTuple(tid, t);
+        for (Page page : list) {
+        	putPage(page.getId(), page);
+        }
     }
 
     /**
@@ -168,7 +172,11 @@ public class BufferPool {
     public  void deleteTuple(TransactionId tid, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
-        // not necessary for lab1
+    	ArrayList<Page> list = Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId())
+        	.deleteTuple(tid, t);
+    	for (Page page : list) {
+        	putPage(page.getId(), page);
+        }
     }
 
     /**

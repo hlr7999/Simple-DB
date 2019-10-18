@@ -93,7 +93,14 @@ public class HeapFile implements DbFile {
     // see DbFile.java for javadocs
     public void writePage(Page page) throws IOException {
         // some code goes here
-        // not necessary for lab1
+        int pgNo = page.getId().getPageNumber();
+        if (pgNo < 0 || pgNo > numPages()) {
+        	throw new IllegalArgumentException("page id out of range");
+        }
+        RandomAccessFile raf = new RandomAccessFile(file, "rw");
+        raf.seek(pgNo*BufferPool.getPageSize());
+        raf.write(page.getPageData());
+        raf.close();
     }
 
     /**
@@ -108,16 +115,35 @@ public class HeapFile implements DbFile {
     public ArrayList<Page> insertTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
         // some code goes here
-        return null;
-        // not necessary for lab1
+        ArrayList<Page> list = new ArrayList<>();
+        BufferPool pool = Database.getBufferPool();
+        int tableid = getId();
+        for (int i = 0; i < numPages(); ++i) {
+        	HeapPage page = (HeapPage)pool.getPage(tid, new HeapPageId(tableid, i), Permissions.READ_WRITE);
+        	if (page.getNumEmptySlots() > 0) {
+        		page.insertTuple(t);
+        		page.markDirty(true, tid);
+        		list.add(page);
+        		return list;
+        	}
+        }
+        HeapPage page = new HeapPage(new HeapPageId(tableid, numPages()), HeapPage.createEmptyPageData());
+        page.insertTuple(t);
+        writePage(page);
+        return list;
     }
 
     // see DbFile.java for javadocs
     public ArrayList<Page> deleteTuple(TransactionId tid, Tuple t) throws DbException,
             TransactionAbortedException {
         // some code goes here
-        return null;
-        // not necessary for lab1
+        BufferPool pool = Database.getBufferPool();
+        HeapPage page = (HeapPage)pool.getPage(tid, t.getRecordId().getPageId(), Permissions.READ_WRITE);
+        page.deleteTuple(t);
+        page.markDirty(true, tid);
+        ArrayList<Page> list = new ArrayList<>();
+        list.add(page);
+        return list;
     }
 
     // see DbFile.java for javadocs
