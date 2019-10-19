@@ -56,7 +56,6 @@ public class BufferPool {
     
     private void putPage(PageId pid, Page page) throws DbException {
     	if (!pages.contains(pid) && pages.size() >= numPages) {
-    		assert pages.size() == numPages;
     		evictPage();
     	}
     	pages.put(pid, page);
@@ -187,7 +186,11 @@ public class BufferPool {
     public synchronized void flushAllPages() throws IOException {
         // some code goes here
         // not necessary for lab1
-
+    	for (Page page : pages.values()) {
+    		if (page.isDirty() != null) {
+    			flushPage(page.getId());
+    		}
+    	}
     }
 
     /** Remove the specific page id from the buffer pool.
@@ -201,6 +204,7 @@ public class BufferPool {
     public synchronized void discardPage(PageId pid) {
         // some code goes here
         // not necessary for lab1
+    	pages.remove(pid);
     }
 
     /**
@@ -210,6 +214,8 @@ public class BufferPool {
     private synchronized  void flushPage(PageId pid) throws IOException {
         // some code goes here
         // not necessary for lab1
+    	Database.getCatalog().getDatabaseFile(pid.getTableId())
+    		.writePage(pages.get(pid));
     }
 
     /** Write all pages of the specified transaction to disk.
@@ -226,6 +232,16 @@ public class BufferPool {
     private synchronized  void evictPage() throws DbException {
         // some code goes here
         // not necessary for lab1
+    	assert pages.size() == numPages;
+    	Page page = pages.values().iterator().next();
+    	if (page.isDirty() != null) {
+    		try {
+				flushPage(page.getId());
+			} catch (IOException e) {
+				throw new DbException("IO Exception evictPage");
+			}
+    	}
+    	pages.remove(page.getId());
     }
 
 }
