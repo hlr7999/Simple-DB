@@ -3,6 +3,7 @@ package simpledb;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -28,6 +29,8 @@ public class BufferPool {
     
     private final ConcurrentHashMap<PageId, Page> pages;
     private final int numPages;
+    
+    private final LockManager lockManager;
 
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -38,6 +41,7 @@ public class BufferPool {
         // some code goes here
     	this.pages = new ConcurrentHashMap<PageId, Page>();
     	this.numPages = numPages;
+    	this.lockManager = new LockManager();
     }
     
     public static int getPageSize() {
@@ -84,6 +88,7 @@ public class BufferPool {
     		page = Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
     		putPage(pid, page);
     	}
+    	lockManager.acquire(tid, pid, perm);
     	return page;
     }
 
@@ -96,9 +101,10 @@ public class BufferPool {
      * @param tid the ID of the transaction requesting the unlock
      * @param pid the ID of the page to unlock
      */
-    public  void releasePage(TransactionId tid, PageId pid) {
+    public void releasePage(TransactionId tid, PageId pid) {
         // some code goes here
         // not necessary for lab1|lab2
+    	lockManager.release(tid, pid);
     }
 
     /**
@@ -115,7 +121,7 @@ public class BufferPool {
     public boolean holdsLock(TransactionId tid, PageId p) {
         // some code goes here
         // not necessary for lab1|lab2
-        return false;
+        return lockManager.hold(tid, p);
     }
 
     /**
@@ -223,6 +229,11 @@ public class BufferPool {
     public synchronized  void flushPages(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+    	for (Page page : pages.values()) {
+    		if (tid.equals(page.isDirty())) {
+    			flushPage(page.getId());
+    		}
+    	}
     }
 
     /**
@@ -233,15 +244,17 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1
     	assert pages.size() == numPages;
-    	Page page = pages.values().iterator().next();
-    	if (page.isDirty() != null) {
-    		try {
-				flushPage(page.getId());
-			} catch (IOException e) {
-				throw new DbException("IO Exception evictPage");
-			}
-    	}
-    	pages.remove(page.getId());
+    	for(Page page : pages.values()){
+            if(page.isDirty() == null){
+            	try {
+    				flushPage(page.getId());
+    		    	pages.remove(page.getId());
+    			} catch (IOException e) {
+    				throw new DbException("IO Exception evictPage");
+    			}
+            }
+        }
+        throw new DbException("No Clean Page to EVICT");
     }
 
 }
