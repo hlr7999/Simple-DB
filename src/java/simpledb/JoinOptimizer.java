@@ -227,11 +227,38 @@ public class JoinOptimizer {
             HashMap<String, TableStats> stats,
             HashMap<String, Double> filterSelectivities, boolean explain)
             throws ParsingException {
-        //Not necessary for labs 1--3
-
-        // some code goes here
-        //Replace the following
-        return joins;
+        // Not necessary for labs 1--3
+    	// some code goes here
+        for (LogicalJoinNode node : joins) {
+        	if (!stats.containsKey(node.t1Alias) || !stats.containsKey(node.t2Alias) ||
+               !filterSelectivities.containsKey(node.t1Alias) || 
+               !filterSelectivities.containsKey(node.t2Alias)) {
+                throw new ParsingException("No Table Stats");
+            }
+        }
+        PlanCache planCache = new PlanCache();
+        for (int i = 0; i < joins.size(); ++i) {
+            Set<Set<LogicalJoinNode>> subsets = enumerateSubsets(joins, i+1);
+            for (Set<LogicalJoinNode> subset : subsets) {
+                CostCard bestPlan = null;
+                double bestCost = Double.MAX_VALUE;
+                for (LogicalJoinNode node : subset) {
+                    CostCard costCard = computeCostAndCardOfSubplan(
+                    	stats, filterSelectivities, node, subset, bestCost, planCache);
+                    if (costCard != null && costCard.cost < bestCost) {
+                        bestPlan = costCard;
+                        bestCost = costCard.cost;
+                    }
+                }
+                if (bestPlan != null) {
+                	planCache.addPlan(subset, bestPlan.cost, bestPlan.card, bestPlan.plan);
+                }
+            }
+        }
+        if (explain) {
+            printJoins(joins, planCache, stats, filterSelectivities);
+        }
+        return planCache.getOrder(new HashSet<>(joins));
     }
 
     // ===================== Private Methods =================================
