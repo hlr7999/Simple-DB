@@ -222,6 +222,7 @@ public class BufferPool {
         // not necessary for lab1
     	Database.getCatalog().getDatabaseFile(pid.getTableId())
     		.writePage(pages.get(pid));
+    	pages.get(pid).markDirty(false, null);
     }
 
     /** Write all pages of the specified transaction to disk.
