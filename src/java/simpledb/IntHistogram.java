@@ -4,7 +4,7 @@ import simpledb.Predicate.Op;
 
 /** A class to represent a fixed-width histogram over a single integer-based field.
  */
-public class IntHistogram {
+public class IntHistogram implements Histogram {
 	
 	private final int[] buckets;
 	private final int max;
@@ -119,4 +119,13 @@ public class IntHistogram {
     	return String.format("IntHistgram(buckets=%d, min=%d, max=%d",
             buckets.length, min, max);
     }
+
+	@Override
+	public double estimateSelectivity(Op op, Field field) {
+		return estimateSelectivity(op, ((IntField)field).getValue());
+	}
+	@Override
+	public void addValue(Field field) {
+		addValue(((IntField)field).getValue());
+	}
 }
