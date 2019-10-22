@@ -109,4 +109,13 @@ public class LockManager {
 		}
 	}
 	
+	public void releaseAll(TransactionId tid) {
+		for (PageId pid : pageWriteHolder.keySet()) {
+			releaseWriteLock(tid, pid);
+		}
+		for (PageId pid : pageReadHolders.keySet()) {
+			releaseReadLock(tid, pid);
+		}
+	}
+	
 }

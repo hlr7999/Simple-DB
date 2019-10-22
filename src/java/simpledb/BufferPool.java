@@ -3,6 +3,7 @@ package simpledb;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
 import java.util.Map;
 
 /**
@@ -115,6 +116,7 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+    	transactionComplete(tid, true);
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
@@ -135,6 +137,16 @@ public class BufferPool {
         throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+    	if (commit) {
+    		flushPages(tid);
+    	} else {
+    		for(Page page : pages.values()){
+                if(tid.equals(page.isDirty())){
+    		    	discardPage(page.getId());
+                }
+            }
+    	}
+    	lockManager.releaseAll(tid);
     }
 
     /**
@@ -155,10 +167,7 @@ public class BufferPool {
     public void insertTuple(TransactionId tid, int tableId, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
-        ArrayList<Page> list = Database.getCatalog().getDatabaseFile(tableId).insertTuple(tid, t);
-        for (Page page : list) {
-        	putPage(page.getId(), page);
-        }
+        Database.getCatalog().getDatabaseFile(tableId).insertTuple(tid, t);
     }
 
     /**
@@ -177,11 +186,8 @@ public class BufferPool {
     public  void deleteTuple(TransactionId tid, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
-    	ArrayList<Page> list = Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId())
+    	Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId())
         	.deleteTuple(tid, t);
-    	for (Page page : list) {
-        	putPage(page.getId(), page);
-        }
     }
 
     /**
@@ -245,14 +251,16 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1
     	assert pages.size() == numPages;
-    	for(Page page : pages.values()){
-            if(page.isDirty() == null){
-            	try {
+    	for (Page page : pages.values()) {
+            if (page.isDirty() == null) {
+            	/* try {
     				flushPage(page.getId());
     		    	pages.remove(page.getId());
     			} catch (IOException e) {
     				throw new DbException("IO Exception evictPage");
-    			}
+    			} */
+		    	pages.remove(page.getId());
+		    	return;
             }
         }
         throw new DbException("No Clean Page to EVICT");
