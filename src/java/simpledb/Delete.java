@@ -74,7 +74,7 @@ public class Delete extends Operator {
         	while (child.hasNext()) {
         		try {
 					pool.deleteTuple(tid, child.next());
-				} catch (Exception e) {
+				} catch (IOException e) {
 					throw new DbException("delete tuple failed");
 				}
         		++num;

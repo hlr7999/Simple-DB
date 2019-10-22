@@ -86,7 +86,7 @@ public class Insert extends Operator {
         	while (child.hasNext()) {
         		try {
 					pool.insertTuple(tid, tableid, child.next());
-				} catch (Exception e) {
+				} catch (IOException e) {
 					throw new DbException("insert tuple failed");
 				}
         		++num;

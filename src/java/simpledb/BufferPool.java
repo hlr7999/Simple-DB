@@ -1,10 +1,7 @@
 package simpledb;
 
 import java.io.*;
-import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.Lock;
-import java.util.Map;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
