@@ -1,51 +1,73 @@
 package simpledb;
 
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
+import java.util.Random;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 
+/* 
+ * There are some problems with the deadLockDect
+ * It will take 30s to pass the system test TransactionTest or even more
+ * So I simply used the timer
+ */
 public class LockManager {
 	
 	private static final Byte FK = 0;
+	private static final int MINTIME = 100, MAXLEN = 900;
+	private final Random random = new Random();
 	
 	private final Map<PageId, Map<TransactionId, Byte>> pageReadHolders;
 	private final Map<PageId, TransactionId> pageWriteHolder;
-	private final Map<TransactionId, Map<PageId, Byte>> waitList;
+	// private final Map<TransactionId, Map<PageId, Byte>> waitList;
 	
 	public LockManager() {
 		this.pageReadHolders = new ConcurrentHashMap<PageId, Map<TransactionId,Byte>>();
 		this.pageWriteHolder = new ConcurrentHashMap<PageId, TransactionId>();
-		this.waitList = new ConcurrentHashMap<TransactionId, Map<PageId, Byte>>();
+		// this.waitList = new ConcurrentHashMap<TransactionId, Map<PageId, Byte>>();
 	}
 	
 	public void acquire(TransactionId tid, PageId pid, Permissions p)
 		throws TransactionAbortedException {
-		waitList.computeIfAbsent(tid, key ->
-			new ConcurrentHashMap<PageId, Byte>()).put(pid, FK);
-		if (p == Permissions.READ_ONLY) {
-			acquireReadLock(tid, pid);
-		} else {
-			acquireWriteLock(tid, pid);
+		/* waitList.computeIfAbsent(tid, key ->
+			new ConcurrentHashMap<PageId, Byte>()).put(pid, FK); */
+		try {
+			if (p == Permissions.READ_ONLY) {
+				acquireReadLock(tid, pid);
+			} else {
+				acquireWriteLock(tid, pid);
+			}
+		} catch (InterruptedException e) {
+			throw new TransactionAbortedException();
 		}
-		waitList.get(tid).remove(pid);
+		/* waitList.get(tid).remove(pid);
 		if (waitList.get(tid).isEmpty()) {
 			waitList.remove(tid);
-		}
+		} */
 	}
 	
 	private void acquireReadLock(TransactionId tid, PageId pid)
-		throws TransactionAbortedException {
+		throws InterruptedException {
 		if (!hold(tid, pid)) {
-			synchronized (tid) {
+			synchronized (pid) {
+				Thread thread = Thread.currentThread();
+				Timer timer = new Timer(true);
+				timer.schedule(new TimerTask() {
+					@Override 
+					public void run() {
+						thread.interrupt();
+					}
+				}, MINTIME + random.nextInt(MAXLEN));
 				while (pageWriteHolder.containsKey(pid)) {
-					deadLockDetect(tid, pid);
+					/* deadLockDetect(tid, pid);
 					try {
 						Thread.sleep(10);
 					} catch (InterruptedException e) {
 						e.printStackTrace();
-					}
+					} */
+					pid.wait(5);
 				}
+				timer.cancel();
 				pageReadHolders.computeIfAbsent(pid, key ->
 					new ConcurrentHashMap<TransactionId, Byte>()).put(tid, FK);
 			}
@@ -53,25 +75,35 @@ public class LockManager {
 	}
 	
 	private void acquireWriteLock(TransactionId tid, PageId pid)
-		throws TransactionAbortedException {
+		throws InterruptedException {
 		if (!holdWriteLock(tid, pid)) {
-			synchronized (tid) {
+			synchronized (pid) {
+				Thread thread = Thread.currentThread();
+				Timer timer = new Timer(true);
+				timer.schedule(new TimerTask() {
+					@Override 
+					public void run() {
+						thread.interrupt();
+					}
+				}, MINTIME + random.nextInt(MAXLEN));
 				while (pageWriteHolder.containsKey(pid) || 
 					haveOtherReader(tid, pid)) {
-					deadLockDetect(tid, pid);
+					/* deadLockDetect(tid, pid);
 					try {
 						Thread.sleep(10);
 					} catch (InterruptedException e) {
 						e.printStackTrace();
-					}
+					} */
+					pid.wait(5);
 				}
+				timer.cancel();
 				pageWriteHolder.put(pid, tid);
 			}
 		}
 	}
 	
 	private boolean haveOtherReader(TransactionId tid, PageId pid) {
-		synchronized (tid) {
+		synchronized (pid) {
 			if (pageReadHolders.containsKey(pid)) {
 				for (TransactionId t : pageReadHolders.get(pid).keySet()) {
 					if (!t.equals(tid)) {
@@ -90,7 +122,7 @@ public class LockManager {
 	
 	private void releaseReadLock(TransactionId tid, PageId pid) {
 		if (holdReadLock(tid, pid)) {
-			synchronized (tid) {
+			synchronized (pid) {
 				pageReadHolders.get(pid).remove(tid);
 				if (pageReadHolders.get(pid).isEmpty()) {
 					pageReadHolders.remove(pid);
@@ -101,7 +133,7 @@ public class LockManager {
 	
 	private void releaseWriteLock(TransactionId tid, PageId pid) {
 		if (holdWriteLock(tid, pid)) {
-			synchronized (tid) {
+			synchronized (pid) {
 				pageWriteHolder.remove(pid);
 			}
 		}
@@ -112,14 +144,14 @@ public class LockManager {
 	}
 	
 	private boolean holdReadLock(TransactionId tid, PageId pid) {
-		synchronized (tid) {
+		synchronized (pid) {
 			return pageReadHolders.containsKey(pid) && 
 					pageReadHolders.get(pid).containsKey(tid);
 		}
 	}
 	
 	private boolean holdWriteLock(TransactionId tid, PageId pid) {
-		synchronized (tid) {
+		synchronized (pid) {
 			return pageWriteHolder.containsKey(pid) && 
 					pageWriteHolder.get(pid).equals(tid);
 		}
@@ -127,9 +159,9 @@ public class LockManager {
 	
 	public void releaseAll(TransactionId tid) {
 		// release waitList first
-		if (waitList.containsKey(tid)) {
+		/* if (waitList.containsKey(tid)) {
 			waitList.remove(tid);
-		}
+		} */
 		for (PageId pid : pageWriteHolder.keySet()) {
 			releaseWriteLock(tid, pid);
 		}
@@ -138,7 +170,12 @@ public class LockManager {
 		}
 	}
 	
-	private void deadLockDetect(TransactionId tid, PageId pid) 
+	/* 
+	 * There are some problems with the deadLockDect
+	 * It will take 30s to pass the system test TransactionTest
+	 * or even more
+	 */
+	/* private void deadLockDetect(TransactionId tid, PageId pid) 
 		throws TransactionAbortedException {
 		deadLockDetect(new ConcurrentHashMap<TransactionId, Byte>(), tid, pid);
 	}
@@ -149,15 +186,11 @@ public class LockManager {
             throw new TransactionAbortedException();
         }
         tMap.put(tid, FK);
-        //System.out.println("tid " + tid + " pid " + pid);
         Map<TransactionId, Byte> tIds = pageReadHolders.getOrDefault(pid, null);
-        //System.out.println("tSet " + tSet);
-        //System.out.println("tIds " + tIds);
         if (tIds != null) {
         	for (TransactionId t : tIds.keySet()) {
         		if (t.equals(tid)) continue;
         		Map<PageId, Byte> pageIds = waitList.getOrDefault(t, null);
-                //System.out.println("pages " + pageIds);
         		if (pageIds != null) {
         			for (PageId pageId : pageIds.keySet()) {
         				deadLockDetect(tMap, t, pageId);
@@ -166,7 +199,6 @@ public class LockManager {
         	}
         }
         TransactionId t = pageWriteHolder.getOrDefault(pid, null);
-        //System.out.println("wt " + t);
         if (t != null && (tIds == null || !tIds.containsKey(t))) {
         	Map<PageId, Byte> pageIds = waitList.getOrDefault(t, null);
     		if (pageIds != null) {
@@ -175,6 +207,6 @@ public class LockManager {
     			}
     		}
         }
-	}
+	} */
 	
 }
